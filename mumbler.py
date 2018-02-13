@@ -19,9 +19,11 @@ master_dict_DIR = common_dir + "master_dict"
 mumbler_dict_DIR = common_dir + "mumbler_dict" 
 current_VM_type="master"
 
-fileDistDict = { "gpfs1" : [12,13], "gpfs2" :[33,34], "gpfs3" :[66,67] }
+fileDistDict = { "gpfs1" : [0,32], "gpfs2" :[33,65], "gpfs3" :[66,99] }
 
-
+#This routine starts the mumbler.py program on other servers. The other servers
+#are used only for downloads of the files. 
+ 
 def startProgramOnOtherServers(cur_host):
 	logging.debug("In startProgramOnOtherServers")
 	for each_hosts in fileDistDict.keys():
@@ -30,7 +32,8 @@ def startProgramOnOtherServers(cur_host):
 		logging.debug("starting on " +  each_hosts)
 		pathos.core.execute('nohup python mumbler.py slave > mumblerout.txt &',host=each_hosts)
 		
-
+#This routines opens the zip url and decompresses it in memory and processes 
+#each line in the csv file and creates a dictionary in the /<vmname>_dict folder
 def processMachineFiles(machineIdx, letterDictionary, isFileDownloaded):
 	logging.debug("In processMachineFiles")
 	for idx in range(fileDistDict[machineIdx][0],fileDistDict[machineIdx][1]): 
@@ -41,6 +44,8 @@ def processMachineFiles(machineIdx, letterDictionary, isFileDownloaded):
 		logging.debug( "Time for processing the file:" + timetaken)
 	logging.debug("completed processMachineFiles")
 
+#This routine copies the file from each of the server /<vmname>_dict folder to 
+# the common folder /gpfs/gpfsfpo folder and unzips it. 
 def copyDictionaryToCommonFolder(machineIdx):
 	logging.debug("In copyDictionaryToCommonFolder")
 	tempZipFile = os.getcwd() +  "/" + machineIdx + "_dict.zip"
@@ -52,6 +57,7 @@ def copyDictionaryToCommonFolder(machineIdx):
 	unzipdir(finalZipFile, common_dir)
 	logging.debug("completed copyDictionaryToCommonFolder")
 
+#This is a helper routine to zip the file. It uses the package zipfile
 def zipdir(path, zipfileName):
     ziph = zipfile.ZipFile(zipfileName, 'w', zipfile.ZIP_DEFLATED)
     for root, dirs, files in os.walk(path):
@@ -59,13 +65,16 @@ def zipdir(path, zipfileName):
             ziph.write(os.path.join(root, file))
     ziph.close()
 
-
+#This is a helper routine to unzip the file. 
 def unzipdir(path_to_zip_file, directory_to_extract):
 	ziph = zipfile.ZipFile(path_to_zip_file, 'r')
 	ziph.extractall(directory_to_extract)
 	ziph.close()
 
 
+#This routine goes through the master dictionary and creates a mumbler_dict. 
+#The mumbler_dict has the first word of 2gram as the key and the value is a
+#dictionary with the second word as the key and match_count as the value.
 def createMumblerDict(master_dict,cur_host):
 	logging.debug("In createMumblerDict")
 	logging.debug("Start time:" + str(datetime.datetime.now()))
@@ -86,6 +95,7 @@ def createMumblerDict(master_dict,cur_host):
 	logging.debug("End time:" + str(datetime.datetime.now()))
 	return mumbler_dict
 
+#This routine loads the serialized master_dict in memory from the disk.
 def loadMasterDictionary(cur_host):
 	logging.debug("In loadMasterDictionary")
 	logging.debug("Start time:" + str(datetime.datetime.now()))
@@ -95,6 +105,7 @@ def loadMasterDictionary(cur_host):
 	logging.debug("End time:" + str(datetime.datetime.now()))
 	return master_dict
 	
+#This routine loads the serialized mumbler_dict in memory from the disk.
 def loadMumblerDictionary(cur_host):
 	logging.debug("In loadMumblerDictionary")
 	logging.debug("Start time:" + str(datetime.datetime.now()))
@@ -104,6 +115,9 @@ def loadMumblerDictionary(cur_host):
 	logging.debug("End time:" + str(datetime.datetime.now()))
 	return mumbler_dict
 
+#This routine gets the list of second word and gets the probability of each
+#2gram word. The probability is calculated as the ratio of the match count of 
+#the firstWord_second_word / the total match count of  
 def getWordList(mumbler_dict,wordToSearch):
 	logging.debug("In getWordList")
 	logging.debug("Start time:" + str(datetime.datetime.now()))
@@ -125,7 +139,8 @@ def getWordList(mumbler_dict,wordToSearch):
 		
 	return return_list
 			
-			
+#This is the main mumbler routine. It searches the mumbler_dict for the 
+#wordToSearch and the noOfWords			
 def mumbler(mumbler_dict, wordToSearch, noOfWords):
 	words_found = 0
 	while (words_found < noOfWords):
@@ -145,6 +160,7 @@ def mumbler(mumbler_dict, wordToSearch, noOfWords):
 		wordToSearch = select_word
 		words_found += 1
 
+#This routine waits until all the other VMs have completed processing the files 
 def waitWhileAllNodesComplete():
 	logging.debug("In waitWhileAllNodesComplete")
 	max_try = 10
@@ -166,7 +182,8 @@ def waitWhileAllNodesComplete():
 		try_count += 1
 	logging.debug("completed waitWhileAllNodesComplete")
 		
-
+#This routine combines the dictionaries from all the VMs to the common 
+#dictionary called master_dict
 def collateDictionaries(cur_host):
 	logging.debug("in collate dictionaries")
 	logging.debug("Start time:" + str(datetime.datetime.now()))
@@ -214,7 +231,7 @@ def collateDictionaries(cur_host):
 	logging.debug("end time:" + str(datetime.datetime.now()))
 	return master_dict
 	
-
+#This is housekeeping routine that creates the needed folders
 def createFolders():
 	logging.debug("Dictionary_DIR=" + Dictionary_DIR)
 	if not os.path.isdir(Dictionary_DIR):
@@ -224,13 +241,15 @@ def createFolders():
 	if not os.path.isdir(mumbler_dict_DIR):
 		os.makedirs(mumbler_dict_DIR)
 		
-
+#This routine creates the dictionary. It is a dictionary of dictionary, one for
+#each of the characters
 def makedictionaries():
 	main_dict = {}
 	for i in range(ord('a'),ord('z')+1):
 		main_dict[chr(i)] = {}
 	return main_dict
 		
+#This routine serializes the dictionary to the disk. 
 def saveDictionaries(dict_to_save, dict_path,machineidx):
 	logging.debug("In save Dictionaries")
 	for i in range(ord('a'),ord('z')+1):
@@ -238,6 +257,7 @@ def saveDictionaries(dict_to_save, dict_path,machineidx):
 		if (len(dict_to_save[chr(i)]) != 0):
 			pickle.dump(dict_to_save[chr(i)], open(ngramDictName, "wb"))		
 
+#This routine loads the dictionary 
 def loadDictionaries(dictionary_to_load_to, dict_path, machineidx):
 	for i in range(ord('a'),ord('z')+1):
 		ngramDictName = dict_path + "/" + chr(i) + "_" + machineidx
@@ -245,6 +265,7 @@ def loadDictionaries(dictionary_to_load_to, dict_path, machineidx):
 			dictionary_to_load_to[chr(i)]= pickle.load(open(ngramDictName,"rb"))
 	
 
+#This routine updates the dictionary with the words from the document
 def updateDictionary(keyWord, matchcount,machineidx,letterDictionary):
 	keyWord = keyWord.lower()
 	if keyWord in letterDictionary[keyWord[0]]:
@@ -253,7 +274,7 @@ def updateDictionary(keyWord, matchcount,machineidx,letterDictionary):
 		letterDictionary[keyWord[0]][keyWord] = int(matchcount)
 	return
 
-
+#This routine opens the url and gets the document in memory
 def downloadFile(url):
 	logging.debug( "in downloadFile")
 	try:
@@ -270,6 +291,8 @@ def downloadFile(url):
 		return None 
 			
 
+#This routine decompresses the file in memory and processes the csv by going
+#through line by line. 
 def getFile(fileIdx,machineidx,letterDictionary, isFileDownloaded):
 	url="http://storage.googleapis.com/books/ngrams/books/googlebooks-eng-all-2gram-20090715-" + str(fileIdx) + ".csv.zip" 
 	logging.debug( url)
@@ -288,6 +311,7 @@ def getFile(fileIdx,machineidx,letterDictionary, isFileDownloaded):
 
 	logging.debug( "processing csv completed")
 
+#This routine prints the usage of the program
 def printUsage():
 	print "\n"
 	print "Usage:"
@@ -303,7 +327,7 @@ def printUsage():
 	print "        To run the program without downloding the file"
 	print "        This assumes files are downloaded and the " + mumbler_dict_DIR + " Dictionary is built"
 
-        
+#This routine downloads the file and creates the dictionary. Called by all VMs
 def downloadFilesAndMakeDictionaries(Dictionary_DIR, cur_host):
 	logging.debug("In downloadFilesAndMakeDictionaries")
 	logging.debug("Dictionary_DIR="+ Dictionary_DIR)
@@ -322,6 +346,7 @@ def downloadFilesAndMakeDictionaries(Dictionary_DIR, cur_host):
 	logging.debug("completed in downloadFilesAndMakeDictionaries")
 	return letterDictionary
 	
+#This routine runs the complete program
 def	Master_processAll(cur_host,wordToSearch, noOfWords):
 	startProgramOnOtherServers(cur_host)
 	downloadFilesAndMakeDictionaries(Dictionary_DIR, cur_host)
@@ -329,21 +354,24 @@ def	Master_processAll(cur_host,wordToSearch, noOfWords):
 	mumbler_dict=createMumblerDict(master_dict,cur_host)
 	mumbler(mumbler_dict,wordToSearch,noOfWords)
 	
+#This routine is used to run the program after the files have been downloaded
 def Master_processAfterDownload(cur_host,wordToSearch,noOfWords):
 	master_dict = collateDictionaries(cur_host)
 	mumbler_dict=createMumblerDict(master_dict,cur_host)
 	mumbler(mumbler_dict,wordToSearch,noOfWords)
 
-
+#This routine is used to run the program after the master_dict has been created
 def Master_processAfterMaster_dict(cur_host,wordToSearch,noOfWords):
 		master_dict = loadMasterDictionary(cur_host)
 		mumbler_dict=createMumblerDict(master_dict,cur_host)
 		mumbler(mumbler_dict,wordToSearch,noOfWords)
 	
+#This routine is used to run the program after the mumbler_dict is created
 def Master_processAfterMumbler_dict(cur_host,wordToSearch,noOfWords):
 		mumbler_dict = loadMumblerDictionary(cur_host)
 		mumbler(mumbler_dict,wordToSearch,noOfWords)
 	
+#This is the main program
 if __name__ == "__main__":
 	logging.basicConfig(filename='mumbler.log',level=logging.DEBUG)
 	logging.debug("Start time:" + str(datetime.datetime.now()))
