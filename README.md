@@ -18,4 +18,8 @@ Each tsv file consists of approximately 60M lines
 
 IBM cluster platform of 3 VMs (2 CPUS, 4GB Ram, 25GB disk1, 25GB disk2). One of the servers, named gpfs1 is the quorum. 
 
+![Alt text](./machine_environment.png?raw=true "Machine Environment")
+
+![Machine Environment](machine_environment.png) 
+
 
